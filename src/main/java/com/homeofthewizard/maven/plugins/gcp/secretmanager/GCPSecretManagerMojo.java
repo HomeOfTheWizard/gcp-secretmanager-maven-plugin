@@ -71,7 +71,6 @@ public class GCPSecretManagerMojo extends AbstractMojo {
         }
 
         Map<String, String> retrievedComplexSecrets = loadSecrets(complexMappings.stream().map(ComplexMapping::getKey).toList());
-        getLog().info(retrievedComplexSecrets.keySet().toString());
         for (ComplexMapping mapping : complexMappings) {
             if (!retrievedComplexSecrets.containsKey(mapping.getKey())) {
                 String message = String.format("No value found in project %s for complex mapping key %s", projectId, mapping.getKey());
@@ -82,7 +81,6 @@ public class GCPSecretManagerMojo extends AbstractMojo {
 
             try {
                 var subSecretKeys = mapper.readValue(secretContent, new TypeReference<HashMap<String,String>>() {});
-                getLog().info(subSecretKeys.keySet().toString());
                 for(Mapping m : mapping.getMappings()){
                     if (!subSecretKeys.containsKey(m.getKey())) {
                         String message = String.format("No value found in complex secret key %s, for subkey %s", mapping.getKey(), m.getKey());
