@@ -39,16 +39,16 @@ public class GCPSecretManagerMojo extends AbstractMojo {
     @Parameter(property = "complexMappings")
     protected List<ComplexMapping> complexMappings;
 
-    @Parameter(defaultValue = "MavenProperties", property = "vault.outputMethod")
+    @Parameter(defaultValue = "MavenProperties", property = "gcp.secretmanager.outputMethod")
     protected OutputMethod outputMethod;
 
-    @Parameter(property = "vault.existingStorePath")
+    @Parameter(property = "gcp.secretmanager.existingStorePath")
     protected String existingStorePath;
 
-    @Parameter(property = "vault.storePassword")
+    @Parameter(property = "gcp.secretmanager.storePassword")
     protected String storePassword;
 
-    @Parameter(property = "vault.storeType")
+    @Parameter(property = "gcp.secretmanager.storeType")
     protected String storeType;
 
     @Parameter(defaultValue = "false", property = "gcp.secretmanager.skipExecution")
@@ -59,26 +59,36 @@ public class GCPSecretManagerMojo extends AbstractMojo {
 
     @Override
     public void execute() {
+        processMappings();
+        processComplexMappings();
+    }
+
+    private void processMappings() {
         getLog().info(String.format("Fetching %d secrets from SecretManager for Project [%s]", mappings.size(), projectId));
         Map<String, String> retrievedSecrets = loadSecrets(mappings.stream().map(Mapping::getKey).toList());
+
         for (Mapping mapping : mappings) {
             if (!retrievedSecrets.containsKey(mapping.getKey())) {
                 String message = String.format("No value found in project %s for key %s", projectId, mapping.getKey());
                 throw new NoSuchElementException(message);
             }
             getLog().info(String.format("Flushing secrets to [%s]", outputMethod));
-            outputMethod.flush(this.project.getProperties(), retrievedSecrets, mapping, storePassword, existingStorePath, storeType);
+            outputMethod.flush(getLog(), this.project.getProperties(), retrievedSecrets, mapping, storePassword, existingStorePath, storeType);
         }
+    }
 
+    private void processComplexMappings() {
+        getLog().info(String.format("Fetching %d complex secrets from SecretManager for Project [%s]", complexMappings.size(), projectId));
         Map<String, String> retrievedComplexSecrets = loadSecrets(complexMappings.stream().map(ComplexMapping::getKey).toList());
+
         for (ComplexMapping mapping : complexMappings) {
             if (!retrievedComplexSecrets.containsKey(mapping.getKey())) {
                 String message = String.format("No value found in project %s for complex mapping key %s", projectId, mapping.getKey());
                 throw new NoSuchElementException(message);
             }
+
             getLog().info(String.format("Flushing complex secrets to [%s]", outputMethod));
             var secretContent = retrievedComplexSecrets.get(mapping.getKey());
-
             try {
                 var subSecretKeys = mapper.readValue(secretContent, new TypeReference<HashMap<String,String>>() {});
                 for(Mapping m : mapping.getMappings()){
@@ -86,7 +96,7 @@ public class GCPSecretManagerMojo extends AbstractMojo {
                         String message = String.format("No value found in complex secret key %s, for subkey %s", mapping.getKey(), m.getKey());
                         throw new NoSuchElementException(message);
                     }
-                    outputMethod.flush(this.project.getProperties(), subSecretKeys, m, storePassword, existingStorePath, storeType);
+                    outputMethod.flush(getLog(), this.project.getProperties(), subSecretKeys, m, storePassword, existingStorePath, storeType);
                 }
             } catch (JsonProcessingException e) {
                 throw new RuntimeException(e);

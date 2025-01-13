@@ -1,5 +1,7 @@
 package com.homeofthewizard.maven.plugins.gcp.secretmanager.config;
 
+import org.apache.maven.plugin.logging.Log;
+
 import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyStore;
@@ -16,65 +18,65 @@ import java.util.Properties;
 public enum OutputMethod {
   MavenProperties{
     @Override
-    public void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
-      setMavenProperties(properties, secrets, mapping);
+    public void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+      setMavenProperties(properties, log, secrets, mapping);
     }
   },
   SystemProperties{
     @Override
-    public void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
-      setSystemProperties(secrets, mapping);
+    public void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+      setSystemProperties(log, secrets, mapping);
     }
   },
   EnvFile{
     @Override
-    public void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
-      createEnvFile(secrets, mapping);
+    public void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+      createEnvFile(log, secrets, mapping);
     }
   },
   File{
     @Override
-    public void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
-      createFile(secrets, mapping);
+    public void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+      createFile(log, secrets, mapping);
     }
   },
   TrustStore{
    @Override
-   public void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
-     OutputMethod.createTrustStore(secrets, mapping, storePassword, existingStorePath, storeType);
+   public void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+     OutputMethod.createTrustStore(log, secrets, mapping, storePassword, existingStorePath, storeType);
    }
   };
 
-  public abstract void flush(Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType);
+  public abstract void flush(Log log, Properties properties, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType);
 
   /**
    * Creates an .envFile and put the secrets in it, respecting the key/property mapping definition given.
    * @param secrets secrets fetched from Vault.
    * @param mapping mapping defined in maven project.
    */
-  private static void createEnvFile(Map<String, String> secrets, Mapping mapping) {
+  private static void createEnvFile(Log log, Map<String, String> secrets, Mapping mapping) {
     try (FileWriter fileWriter = new FileWriter(".env", true)) {
       var buffer = new BufferedWriter(fileWriter);
       var printer = new PrintWriter(buffer);
       printer.format("%s=%s\n",mapping.getProperty(),secrets.get(mapping.getKey()));
       printer.flush();
     } catch (IOException e) {
-      e.printStackTrace();
+      log.error(e);
     }
   }
 
-  private static void createFile(Map<String, String> secrets, Mapping mapping) {
+  private static void createFile(Log log, Map<String, String> secrets, Mapping mapping) {
     try (FileWriter fileWriter = new FileWriter(mapping.getProperty(), true)) {
       var buffer = new BufferedWriter(fileWriter);
       var printer = new PrintWriter(buffer);
       printer.format("%s",secrets.get(mapping.getKey()));
       printer.flush();
     } catch (IOException e) {
-      e.printStackTrace();
+      log.error(e);
     }
   }
 
-  private static void createTrustStore(Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
+  private static void createTrustStore(Log log, Map<String, String> secrets, Mapping mapping, String storePassword, String existingStorePath, String storeType) {
     var storePasswordCharArr = Objects.isNull(storePassword) ? new char[0] : storePassword.toCharArray();
     var type = !Objects.isNull(storeType) ? storeType : KeyStore.getDefaultType();
 
@@ -92,7 +94,7 @@ public enum OutputMethod {
       keystore.store(storeOutputStream, storePasswordCharArr);
 
     } catch (CertificateException | KeyStoreException | NoSuchAlgorithmException | IOException e) {
-      e.printStackTrace();
+      log.error(e);
     }
   }
 
@@ -101,7 +103,7 @@ public enum OutputMethod {
    * @param secrets secrets fetched from Vault.
    * @param mapping mapping defined in maven project.
    */
-  private static void setSystemProperties(Map<String, String> secrets, Mapping mapping) {
+  private static void setSystemProperties(Log log, Map<String, String> secrets, Mapping mapping) {
     System.setProperty(mapping.getProperty(), secrets.get(mapping.getKey()));
   }
 
@@ -111,7 +113,7 @@ public enum OutputMethod {
    * @param secrets secrets fetched from Vault.
    * @param mapping mapping defined in maven project.
    */
-  private static void setMavenProperties(Properties properties, Map<String, String> secrets, Mapping mapping) {
+  private static void setMavenProperties(Properties properties, Log log, Map<String, String> secrets, Mapping mapping) {
     properties.setProperty(mapping.getProperty(), secrets.get(mapping.getKey()));
   }
 }
